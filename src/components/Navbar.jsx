@@ -1,122 +1,93 @@
+import { Link, NavLink } from "react-router-dom";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const whatsappNumber = "97577777567";
-  const whatsappMsg =
-    "Hello The Jewel Heritage, I’d like to enquire about room availability and rates.";
+  const base =
+    "text-gray-700 hover:text-amber-700 transition font-medium";
+  const active =
+    "text-amber-800 font-semibold";
+
+  const navClass = ({ isActive }) => (isActive ? active : base);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b">
-      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-
-        {/* Logo / Brand */}
-        <Link to="/" className="font-semibold tracking-wide text-lg">
-          The Jewel Heritage
-        </Link>
-
-        {/* Desktop Menu */}
-        <nav className="hidden md:flex items-center gap-6 text-sm">
-          <Link to="/" className="hover:opacity-70">
-            Home
+    <nav className="bg-white shadow-md fixed w-full z-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <Link
+            to="/"
+            className="text-lg font-bold tracking-wide text-amber-900"
+            onClick={() => setIsOpen(false)}
+          >
+            THE JEWEL HERITAGE
           </Link>
 
-          <Link to="/about" className="hover:opacity-70">
-            About
-          </Link>
-
-          <a href="/#rooms" className="hover:opacity-70">
-            Rooms
-          </a>
-
-          <a href="/#gallery" className="hover:opacity-70">
-            Gallery
-          </a>
-
-          <a href="/#contact" className="hover:opacity-70">
-            Contact
-          </a>
-        </nav>
-
-        {/* Desktop Buttons */}
-        <div className="hidden md:flex items-center gap-2">
-          <a
-            href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-              whatsappMsg
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full px-4 py-2 text-sm font-medium bg-black text-white hover:opacity-90"
-          >
-            WhatsApp
-          </a>
-
-          <a
-            href="mailto:reservation@thejewelheritage.com"
-            className="rounded-full px-4 py-2 text-sm font-medium border hover:bg-gray-100"
-          >
-            Email
-          </a>
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button
-          onClick={() => setOpen(!open)}
-          className="md:hidden border px-3 py-2 rounded-lg text-sm"
-        >
-          {open ? "Close" : "Menu"}
-        </button>
-      </div>
-
-      {/* Mobile Menu */}
-      {open && (
-        <div className="md:hidden border-t bg-white">
-          <div className="flex flex-col gap-3 px-4 py-4 text-sm">
-
-            <Link to="/" onClick={() => setOpen(false)}>
+          {/* Desktop */}
+          <div className="hidden md:flex items-center space-x-8">
+            <NavLink to="/" className={navClass}>
               Home
-            </Link>
+            </NavLink>
 
-            <Link to="/about" onClick={() => setOpen(false)}>
+            <NavLink to="/about" className={navClass}>
               About
-            </Link>
+            </NavLink>
 
-            <a href="/#rooms" onClick={() => setOpen(false)}>
-              Rooms
-            </a>
-
-            <a href="/#gallery" onClick={() => setOpen(false)}>
+            <NavLink to="/gallery" className={navClass}>
               Gallery
-            </a>
+            </NavLink>
 
-            <a href="/#contact" onClick={() => setOpen(false)}>
-              Contact
-            </a>
+            <NavLink to="/#rooms" className={base}>
+              Rooms
+            </NavLink>
 
-            <div className="pt-3 flex gap-2">
-              <a
-                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-                  whatsappMsg
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 text-center rounded-full px-4 py-2 bg-black text-white"
-              >
-                WhatsApp
-              </a>
+            <NavLink
+              to="/bookings"
+              className="bg-black text-white px-5 py-2 rounded-full hover:bg-gray-800 transition"
+            >
+              Book Now
+            </NavLink>
+          </div>
 
-              <a
-                href="mailto:reservation@thejewelheritage.com"
-                className="flex-1 text-center rounded-full px-4 py-2 border"
-              >
-                Email
-              </a>
-            </div>
+          {/* Mobile toggle */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsOpen((s) => !s)}
+              className="text-2xl"
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Mobile menu */}
+      {isOpen && (
+        <div className="md:hidden bg-white shadow-md px-4 pb-4 space-y-3">
+          <NavLink to="/" className={base} onClick={() => setIsOpen(false)}>
+            Home
+          </NavLink>
+          <NavLink to="/about" className={base} onClick={() => setIsOpen(false)}>
+            About
+          </NavLink>
+          <NavLink to="/gallery" className={base} onClick={() => setIsOpen(false)}>
+            Gallery
+          </NavLink>
+          <NavLink to="/bookings" className={base} onClick={() => setIsOpen(false)}>
+            Bookings
+          </NavLink>
+
+          <Link
+            to="/bookings"
+            onClick={() => setIsOpen(false)}
+            className="block bg-black text-white px-4 py-2 rounded-full text-center"
+          >
+            Book Now
+          </Link>
+        </div>
       )}
-    </header>
+    </nav>
   );
 }

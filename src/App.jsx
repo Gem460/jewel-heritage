@@ -1,14 +1,16 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
-import About from "./sections/About";
+import About from "./pages/About";
+import Gallery from "./pages/Gallery";
+import Bookings from "./pages/Bookings";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/gallery" element={<Gallery />} />
+      <Route path="/bookings" element={<Bookings />} />
+    </Routes>
   );
 }
