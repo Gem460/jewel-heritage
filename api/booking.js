@@ -33,10 +33,10 @@ function makeConfirmationNo() {
 }
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
 
@@ -79,10 +79,10 @@ export default async function handler(req, res) {
       return json(res, 400, { error: "Invalid email address" });
     }
 
-    // ✅ always generate on server if missing
+    // ✅ Always generate confirmation on server if missing
     const CONFIRM = confirmationNo || makeConfirmationNo();
 
-    // ✅ use verified domain sender if provided
+    // ✅ Use your verified domain sender
     const FROM = process.env.MAIL_FROM || "onboarding@resend.dev";
 
     const subject = `Jewel Heritage Booking (${CONFIRM})`;
@@ -110,7 +110,7 @@ Page: ${page || "-"}
 Submitted: ${submittedAt || new Date().toISOString()}
 `.trim();
 
-    // 1) hotel email (must succeed)
+    // 1) Send to HOTEL
     const toHotel = await resend.emails.send({
       from: `Jewel Heritage <${FROM}>`,
       to: process.env.HOTEL_INBOX,
@@ -119,7 +119,7 @@ Submitted: ${submittedAt || new Date().toISOString()}
       reply_to: process.env.HOTEL_INBOX,
     });
 
-    // 2) guest email (if this fails, show the real reason)
+    // 2) Send to GUEST — and if it fails, return the real error
     const guestSubject = `Your booking request (${CONFIRM})`;
     const guestText =
       `Hi ${fullName},\n\n` +
@@ -139,7 +139,6 @@ Submitted: ${submittedAt || new Date().toISOString()}
       reply_to: process.env.HOTEL_INBOX,
     });
 
-    // ✅ If Resend returns an error object, expose it
     if (toGuest?.error) {
       return json(res, 502, {
         ok: false,
