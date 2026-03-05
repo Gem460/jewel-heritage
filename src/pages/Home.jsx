@@ -1,17 +1,17 @@
-import Navbar from "../components/Navbar";
-import Hero from "../sections/Hero";
+import AccorPhotoStrip from "../sections/AccorPhotoStrip";
+import HeroBookingSearch from "../sections/HeroBookingSearch";
 import Rooms from "../sections/Rooms";
 import Location from "../sections/Location";
-import Footer from "../components/Footer"; // adjust if needed
 
 export default function Home() {
   return (
     <>
-      <Navbar />
-      <Hero />
+      <AccorPhotoStrip onOpenGallery={() => (window.location.href = "/gallery")} />
+      <HeroBookingSearch />
       <Rooms />
-      <Location />
-      <Footer />
+      <div id="map">
+        <Location />
+      </div>
     </>
   );
 }

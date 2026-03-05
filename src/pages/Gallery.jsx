@@ -1,104 +1,66 @@
-import { useMemo, useState } from "react";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
-import { rooms } from "../data/roomsData";
+// src/pages/Gallery.jsx
 
-// Auto-load general hotel photos
-const generalImages = import.meta.glob(
-  "../assets/hotel/general/*.jpg",
-  {
-    eager: true,
-    import: "default",
-  }
+// Auto-load ALL images from: src/assets/hotel/general
+// Fixes Vite error by matching ONLY normal extensions (jpg/jpeg/png/webp),
+// so files like "rec.jpg.JPEG" (double extension) are ignored until you rename them.
+
+const imageModules = import.meta.glob(
+  "../assets/hotel/general/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}",
+  { eager: true, import: "default" }
 );
 
+// Turn modules into array + sort nicely by filename
+const images = Object.entries(imageModules)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, src]) => src);
+
 export default function Gallery() {
-  const images = useMemo(() => {
-    const roomImages = rooms.flatMap((room) => room.gallery || []);
-    const extraImages = Object.values(generalImages);
-
-    // Combine everything
-    return [...extraImages, ...roomImages];
-  }, []);
-
-  const [activeIndex, setActiveIndex] = useState(null);
-  const activeImage = activeIndex !== null ? images[activeIndex] : null;
-
-  function close() {
-    setActiveIndex(null);
-  }
-
-  function next() {
-    setActiveIndex((i) => (i + 1) % images.length);
-  }
-
-  function prev() {
-    setActiveIndex((i) => (i - 1 + images.length) % images.length);
-  }
-
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
+    <main className="min-h-screen bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-semibold text-stone-900">
+              Photo Gallery
+            </h1>
+            <p className="mt-2 text-stone-600">
+              Explore The Jewel Heritage — traditional Bhutanese charm in Paro.
+            </p>
+          </div>
 
-      <main className="mx-auto max-w-7xl px-4 pt-24 pb-16">
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {images.map((img, index) => (
-            <button
-              key={index}
-              onClick={() => setActiveIndex(index)}
-              className="overflow-hidden rounded-2xl"
-            >
-              <img
-                src={img}
-                alt=""
-                className="h-72 w-full object-cover transition duration-300 hover:scale-105"
-              />
-            </button>
-          ))}
-        </div>
-      </main>
-
-      <Footer />
-
-      {/* Lightbox */}
-      {activeImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-          onClick={close}
-        >
-          <div
-            className="relative max-w-6xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img
-              src={activeImage}
-              alt=""
-              className="max-h-[85vh] w-full object-contain"
-            />
-
-            <button
-              onClick={prev}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-3xl"
-            >
-              ‹
-            </button>
-
-            <button
-              onClick={next}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-3xl"
-            >
-              ›
-            </button>
-
-            <button
-              onClick={close}
-              className="absolute top-4 right-4 text-white text-xl"
-            >
-              ✕
-            </button>
+          <div className="text-sm text-stone-500">
+            {images.length} photo{images.length === 1 ? "" : "s"}
           </div>
         </div>
-      )}
-    </div>
+
+        <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-4">
+          {images.map((src, idx) => (
+            <figure
+              key={idx}
+              className="group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm hover:shadow-md transition"
+            >
+              <img
+                src={src}
+                alt={`Jewel Heritage photo ${idx + 1}`}
+                loading="lazy"
+                className="h-56 md:h-64 w-full object-cover group-hover:scale-[1.03] transition duration-300"
+              />
+            </figure>
+          ))}
+        </div>
+
+        {images.length === 0 && (
+          <div className="mt-10 rounded-2xl border border-stone-200 bg-stone-50 p-6 text-stone-700">
+            <p className="font-medium">No gallery images found.</p>
+            <p className="mt-2 text-sm text-stone-600">
+              Add photos to <code className="px-2 py-1 bg-white rounded border">src/assets/hotel/general</code>{" "}
+              with extensions: <b>.jpg</b>, <b>.jpeg</b>, <b>.png</b>, or <b>.webp</b>.
+              <br />
+              If you have files like <b>rec.jpg.JPEG</b>, rename them to <b>rec.jpg</b> or <b>rec.jpeg</b>.
+            </p>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

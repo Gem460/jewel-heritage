@@ -1,21 +1,53 @@
+// api/booking.js
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Helpers
+const json = (res, status, data) => {
+  res.statusCode = status; // ✅ FIXED
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(data));
+};
+
+function safeParse(body) {
+  if (!body) return {};
+  if (typeof body === "object") return body;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return {};
+  }
+}
+
+function isValidEmail(email) {
+  return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  // Basic CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") return res.end();
+  if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
 
   try {
     if (!process.env.RESEND_API_KEY) {
-      return res.status(500).json({ error: "Missing RESEND_API_KEY in environment variables" });
+      return json(res, 500, { error: "Missing RESEND_API_KEY in Vercel env" });
+    }
+    if (!process.env.HOTEL_INBOX) {
+      return json(res, 500, { error: "Missing HOTEL_INBOX in Vercel env" });
     }
 
-    const data = req.body || {};
+    const data = safeParse(req.body);
 
     // Honeypot
-    if (data._gotcha) return res.status(200).json({ ok: true });
+    if (data._gotcha) return json(res, 200, { ok: true });
 
     const {
+      confirmationNo,
       room,
       roomId,
       rate,
@@ -23,99 +55,101 @@ export default async function handler(req, res) {
       checkOut,
       adults,
       children,
+      rooms,
       airportShuttle,
       fullName,
       email,
       phone,
       notes,
-      page,
       submittedAt,
+      page,
     } = data;
 
+    // Validate required fields
     if (!fullName || !email || !phone || !checkIn || !checkOut) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return json(res, 400, { error: "Missing required fields" });
+    }
+    if (!isValidEmail(email)) {
+      return json(res, 400, { error: "Invalid email address" });
     }
 
-    // IMPORTANT: Before domain is verified, you can only send from Resend default addresses.
-    // If Resend rejects the 'from', it will return an error we now expose.
-    const fromBooking = "Jewel Heritage Booking <onboarding@resend.dev>";
-    const fromGuest = "The Jewel Heritage <onboarding@resend.dev>";
+    // Sender: use your domain sender once verified
+    // Example MAIL_FROM: reservations@thejewelheritage.com
+    const FROM = process.env.MAIL_FROM || "onboarding@resend.dev";
 
-    // Change this to YOUR receiving email:
-    const HOTEL_INBOX = "spzbht@gmail.com";
+    // Email content for hotel
+    const subject = `Jewel Heritage Booking ${confirmationNo ? `(${confirmationNo})` : ""}`.trim();
 
-    const bookingText = `
-NEW BOOKING REQUEST
+    const hotelText = `
+New Booking Request
 
-Room: ${room || ""} (${roomId || ""})
-Rate: ${rate || ""}
-
-Dates: ${checkIn} to ${checkOut}
-Guests: Adults ${adults}, Children ${children}
-Airport Shuttle: ${airportShuttle}
-
-Guest:
-Name: ${fullName}
+Confirmation: ${confirmationNo || "N/A"}
+Guest: ${fullName}
 Email: ${email}
-Phone/WhatsApp: ${phone}
+Phone: ${phone}
 
-Notes:
-${notes || "-"}
-
-Page: ${page || ""}
-Submitted: ${submittedAt || ""}
-`.trim();
-
-    // 1) Email to hotel
-    const r1 = await resend.emails.send({
-      from: fromBooking,
-      to: [HOTEL_INBOX],
-      replyTo: email,
-      subject: `New Booking Request - ${room || "Room"}`,
-      text: bookingText,
-    });
-
-    if (r1?.error) {
-      return res.status(500).json({
-        error: "Resend failed sending to hotel inbox",
-        detail: r1.error,
-      });
-    }
-
-    // 2) Confirmation email to guest
-    const guestText = `
-Dear ${fullName},
-
-Thank you for your booking request at The Jewel Heritage.
-
-We received your request:
-Room: ${room || "Room"}
+Room: ${room || "N/A"} (${roomId || "N/A"})
+Rate: ${rate || "N/A"}
 Check-in: ${checkIn}
 Check-out: ${checkOut}
+Adults: ${adults ?? "N/A"}
+Children: ${children ?? "N/A"}
+Rooms: ${rooms ?? "N/A"}
+Airport Shuttle: ${airportShuttle ? "Yes" : "No"}
 
-Our team will contact you shortly to confirm availability.
+Notes: ${notes || "-"}
 
-Warm regards,
-The Jewel Heritage
-Paro, Changsima, Bhutan
+Page: ${page || "-"}
+Submitted: ${submittedAt || new Date().toISOString()}
 `.trim();
 
-    const r2 = await resend.emails.send({
-      from: fromGuest,
-      to: [email],
-      subject: "We received your booking request — The Jewel Heritage",
-      text: guestText,
+    // 1) Send to HOTEL
+    const toHotel = await resend.emails.send({
+      from: `Jewel Heritage <${FROM}>`,
+      to: process.env.HOTEL_INBOX,
+      subject,
+      text: hotelText,
+      // ✅ Recommended: hotel staff replies go to hotel inbox (or change to guest email if you prefer)
+      reply_to: process.env.HOTEL_INBOX,
     });
 
-    if (r2?.error) {
-      return res.status(500).json({
-        error: "Resend failed sending confirmation to guest",
-        detail: r2.error,
-      });
-    }
+    // 2) Send confirmation to GUEST
+    const guestSubject = `Your booking request ${confirmationNo ? `(${confirmationNo})` : ""}`.trim();
+    const guestText =
+      `Hi ${fullName},\n\n` +
+      `We received your booking request.\n\n` +
+      `Confirmation: ${confirmationNo || "N/A"}\n` +
+      `Check-in: ${checkIn}\n` +
+      `Check-out: ${checkOut}\n` +
+      `Room: ${room || "N/A"}\n\n` +
+      `We will contact you shortly.\n\n` +
+      `— Jewel Heritage\n`;
 
-    return res.status(200).json({ ok: true, hotelEmailId: r1.data?.id, guestEmailId: r2.data?.id });
+    const toGuest = await resend.emails.send({
+      from: `Jewel Heritage <${FROM}>`,
+      to: email,
+      subject: guestSubject,
+      text: guestText,
+      // ✅ If guest replies, it should go to hotel
+      reply_to: process.env.HOTEL_INBOX,
+    });
+
+    return json(res, 200, {
+      ok: true,
+      confirmationNo: confirmationNo || null,
+      hotelMessageId: toHotel?.data?.id || null,
+      guestMessageId: toGuest?.data?.id || null,
+    });
   } catch (err) {
-    return res.status(500).json({ error: "Server error", detail: String(err?.message || err) });
+    console.error("BOOKING_API_ERROR:", err);
+
+    // If Resend returns a useful message, bubble it up
+    const detail =
+      err?.response?.data || err?.response || err?.message || String(err);
+
+    return json(res, 500, {
+      error: "Server error sending email",
+      detail,
+    });
   }
 }

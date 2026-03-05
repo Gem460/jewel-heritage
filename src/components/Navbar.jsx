@@ -1,93 +1,64 @@
-import { Link, NavLink } from "react-router-dom";
-import { useState } from "react";
+import { NavLink, Link } from "react-router-dom";
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const base =
-    "text-gray-700 hover:text-amber-700 transition font-medium";
-  const active =
-    "text-amber-800 font-semibold";
-
-  const navClass = ({ isActive }) => (isActive ? active : base);
+  const linkClass = ({ isActive }) =>
+    `px-3 py-2 rounded-lg text-sm font-medium ${
+      isActive ? "bg-gray-100" : "hover:bg-gray-50"
+    }`;
 
   return (
-    <nav className="bg-white shadow-md fixed w-full z-50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link
-            to="/"
-            className="text-lg font-bold tracking-wide text-amber-900"
-            onClick={() => setIsOpen(false)}
-          >
-            THE JEWEL HERITAGE
-          </Link>
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b">
+      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-4">
 
-          {/* Desktop */}
-          <div className="hidden md:flex items-center space-x-8">
-            <NavLink to="/" className={navClass}>
-              Home
-            </NavLink>
+        {/* Logo + Brand */}
+        <Link to="/" className="flex items-center gap-3 font-semibold text-lg">
 
-            <NavLink to="/about" className={navClass}>
-              About
-            </NavLink>
+          <img
+            src="/logo.png"
+            alt="The Jewel Heritage"
+            className="h-9 w-9 object-contain"
+          />
 
-            <NavLink to="/gallery" className={navClass}>
-              Gallery
-            </NavLink>
+          <span>The Jewel Heritage</span>
 
-            <NavLink to="/#rooms" className={base}>
-              Rooms
-            </NavLink>
-
-            <NavLink
-              to="/bookings"
-              className="bg-black text-white px-5 py-2 rounded-full hover:bg-gray-800 transition"
-            >
-              Book Now
-            </NavLink>
-          </div>
-
-          {/* Mobile toggle */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsOpen((s) => !s)}
-              className="text-2xl"
-              aria-label="Open menu"
-            >
-              ☰
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {isOpen && (
-        <div className="md:hidden bg-white shadow-md px-4 pb-4 space-y-3">
-          <NavLink to="/" className={base} onClick={() => setIsOpen(false)}>
+        </Link>
+        <Link to="/cancel-booking" className="text-sm font-medium hover:underline">
+          Cancel Booking
+        </Link>
+        {/* Navigation */}
+        <nav className="flex items-center gap-2">
+          <NavLink to="/" end className={linkClass}>
             Home
           </NavLink>
-          <NavLink to="/about" className={base} onClick={() => setIsOpen(false)}>
-            About
-          </NavLink>
-          <NavLink to="/gallery" className={base} onClick={() => setIsOpen(false)}>
+
+          <NavLink to="/gallery" className={linkClass}>
             Gallery
           </NavLink>
-          <NavLink to="/bookings" className={base} onClick={() => setIsOpen(false)}>
-            Bookings
-          </NavLink>
 
-          <Link
-            to="/bookings"
-            onClick={() => setIsOpen(false)}
-            className="block bg-black text-white px-4 py-2 rounded-full text-center"
-          >
-            Book Now
-          </Link>
+          <NavLink to="/contact" className={linkClass}>
+            Contact
+          </NavLink>
+        </nav>
+
+        {/* Right Side */}
+        <div className="ml-auto flex items-center gap-2">
+
+          <input
+            className="hidden md:block w-[320px] rounded-lg border px-3 py-2 text-sm"
+            placeholder="Search rooms... (suite, deluxe, standard)"
+          />
+
+          <button className="rounded-lg bg-black text-white px-4 py-2 text-sm hover:bg-gray-900">
+            Search
+          </button>
+
+          <button className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+            Sign in
+          </button>
+
         </div>
-      )}
-    </nav>
+
+      </div>
+    </header>
   );
 }

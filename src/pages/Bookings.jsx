@@ -1,375 +1,415 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { rooms } from "../data/roomsData";
+// src/pages/Bookings.jsx
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import rooms from "../data/roomsData";
+import { nightsBetween, fmtDateShort } from "../utils/date";
 
-const FORMSPREE_URL = "https://formspree.io/f/xeelddjb";
+// ✅ If you set VITE_API_BASE you can use it, otherwise default to same-origin (best for Vercel)
+const BOOKING_API = "/api/booking";
 
-function formatDateYYYYMMDD(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+// ✅ Confirmation number generator (JH-YYYYMMDD-XXXX)
+function generateConfirmation() {
+  const now = new Date();
+  const date =
+    now.getFullYear().toString() +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0");
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `JH-${date}-${rand}`;
 }
 
-function addDays(dateStr, days) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return formatDateYYYYMMDD(d);
+// ✅ simple token for cancellation (email-based approach)
+function generateCancelToken() {
+  return Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+}
+
+// ✅ cancellation link is a mailto link included in email
+function buildCancelLink({ confirmationNumber, email, cancelToken }) {
+  const hotelEmail = import.meta.env.VITE_HOTEL_EMAIL || "spzbht@gmail.com";
+
+  const subject = encodeURIComponent(`Cancellation Request — ${confirmationNumber}`);
+  const body = encodeURIComponent(
+    `Hello The Jewel Heritage Reservations,\n\n` +
+      `I would like to cancel my booking.\n\n` +
+      `Confirmation Number: ${confirmationNumber}\n` +
+      `Guest Email: ${email}\n` +
+      `Cancel Token: ${cancelToken}\n\n` +
+      `Thank you.`
+  );
+
+  return `mailto:${hotelEmail}?subject=${subject}&body=${body}`;
+}
+
+// ✅ Safe parse date (YYYY-MM-DD)
+function toDate(d) {
+  const dt = new Date(d);
+  return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
 export default function Bookings() {
-  const location = useLocation();
+  const [params] = useSearchParams();
 
-  const todayStr = useMemo(() => formatDateYYYYMMDD(new Date()), []);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // ✅ Generate once per page load (stable confirmation number)
+  const [confirmationNo, setConfirmationNo] = useState(generateConfirmation);
+
+  // booking details from URL
+  const roomId = params.get("room") || rooms?.[0]?.id;
+  const rateId = params.get("rate") || "flex";
+  const checkIn = params.get("checkIn") || "2026-03-05";
+  const checkOut = params.get("checkOut") || "2026-03-08";
+  const adults = Number(params.get("adults") || 1);
+  const children = Number(params.get("children") || 0);
+  const roomsCount = Number(params.get("rooms") || 1);
+  const shuttle = params.get("shuttle") === "true";
+
+  const room = useMemo(
+    () => rooms.find((r) => r.id === roomId) || rooms?.[0],
+    [roomId]
+  );
+
+  const nights = useMemo(() => {
+    const n = nightsBetween(checkIn, checkOut);
+    return n > 0 ? n : 1;
+  }, [checkIn, checkOut]);
+
+  const selectedRate = useMemo(() => {
+    if (!room?.rates?.length) return null;
+    return room.rates.find((x) => x.id === rateId) || room.rates[0];
+  }, [room, rateId]);
+
+  const total = useMemo(() => {
+    if (!selectedRate) return 0;
+    return (selectedRate.pricePerNight || 0) * nights * roomsCount;
+  }, [selectedRate, nights, roomsCount]);
 
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     phone: "",
-    roomType: "",
-    checkIn: "",
-    checkOut: "",
-    adults: "1",
-    airportShuttle: false,
-    message: "",
-    _gotcha: "", // honeypot
+    requests: "",
   });
 
-  const [status, setStatus] = useState({ type: "idle", msg: "" });
-  const [errors, setErrors] = useState({});
+  const update = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  // ✅ Prefill from query params e.g. /bookings?room=Suite%20(Single)&checkIn=2026-03-10&checkOut=2026-03-12&adults=2
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
+  const validate = () => {
+    setErrorMsg("");
 
-    const room = params.get("room");
-    const checkIn = params.get("checkIn");
-    const checkOut = params.get("checkOut");
-    const adults = params.get("adults");
+    if (!form.fullName.trim()) return "Please enter your full name.";
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) return "Please enter a valid email.";
+    if (!/^\+?[0-9\s\-()]{7,20}$/.test(form.phone))
+      return "Please enter a valid phone number (include country code).";
 
-    setForm((prev) => ({
-      ...prev,
-      roomType: room || prev.roomType,
-      checkIn: checkIn || prev.checkIn,
-      checkOut: checkOut || prev.checkOut,
-      adults: adults || prev.adults,
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+    const ci = toDate(checkIn);
+    const co = toDate(checkOut);
+    if (!ci || !co) return "Please choose valid check-in and check-out dates.";
 
-  function handleChange(e) {
-    const { name, value, type, checked } = e.target;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const ci0 = new Date(ci);
+    ci0.setHours(0, 0, 0, 0);
 
-    setForm((prev) => {
-      const next = { ...prev, [name]: type === "checkbox" ? checked : value };
+    if (ci0 < today) return "Check-in date cannot be in the past.";
+    if (nightsBetween(checkIn, checkOut) <= 0)
+      return "Check-out must be after check-in.";
 
-      // ✅ If user picks check-in AFTER current check-out, auto bump check-out +1 day
-      if (name === "checkIn" && next.checkIn) {
-        // force check-in not in the past (extra guard)
-        if (next.checkIn < todayStr) next.checkIn = todayStr;
-
-        if (next.checkOut && !(new Date(next.checkOut) > new Date(next.checkIn))) {
-          next.checkOut = addDays(next.checkIn, 1);
-        }
-      }
-
-      // ✅ If user picks check-out BEFORE/ON check-in, auto bump it
-      if (name === "checkOut" && next.checkIn && next.checkOut) {
-        if (!(new Date(next.checkOut) > new Date(next.checkIn))) {
-          next.checkOut = addDays(next.checkIn, 1);
-        }
-      }
-
-      return next;
-    });
-  }
-
-  function validate() {
-    const e = {};
-
-    if (!form.fullName.trim()) e.fullName = "Full name is required.";
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      e.email = "Enter a valid email.";
-    }
-
-    // Require country code like +61..., allow spaces/dashes/()
-    const cleanedPhone = form.phone.replace(/[\s-()]/g, "");
-    if (!/^\+\d{8,15}$/.test(cleanedPhone)) {
-      e.phone = "Use country code (e.g., +61 4xx xxx xxx).";
-    }
-
-    if (!form.roomType) e.roomType = "Please select a room type.";
-
-    if (!form.checkIn) e.checkIn = "Select check-in date.";
-    if (!form.checkOut) e.checkOut = "Select check-out date.";
-
-    if (form.checkIn && form.checkIn < todayStr) {
-      e.checkIn = "Check-in cannot be in the past.";
-    }
-
-    const adultsNum = Number(form.adults);
-    if (!Number.isInteger(adultsNum) || adultsNum < 1 || adultsNum > 10) {
-      e.adults = "Adults must be 1 to 10.";
-    }
-
-    if (form.checkIn && form.checkOut) {
-      const inD = new Date(form.checkIn + "T00:00:00");
-      const outD = new Date(form.checkOut + "T00:00:00");
-      if (!(outD > inD)) e.checkOut = "Check-out must be after check-in.";
-    }
-
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
+    return "";
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setStatus({ type: "idle", msg: "" });
 
-    if (!validate()) {
-      setStatus({ type: "error", msg: "Please fix the highlighted fields." });
+    const v = validate();
+    if (v) {
+      setErrorMsg(v);
       return;
     }
 
-    setStatus({ type: "loading", msg: "Sending..." });
+    if (!room || !selectedRate) {
+      setErrorMsg("Booking details missing. Please start again from Pricing.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMsg("");
 
     try {
-      const fd = new FormData();
+      // ✅ Stable confirmation
+      const confirmation = confirmationNo || generateConfirmation();
+      if (!confirmationNo) setConfirmationNo(confirmation);
 
-      // ✅ Convert checkbox to friendly Yes/No (cleaner emails)
-      const payload = {
-        ...form,
-        phone: form.phone.trim(),
-        airportShuttle: form.airportShuttle ? "Yes" : "No",
-      };
-
-      Object.entries(payload).forEach(([k, v]) => fd.append(k, String(v)));
-
-      fd.append(
-        "_subject",
-        `New Booking Request — ${form.roomType} — ${form.checkIn} to ${form.checkOut}`
-      );
-
-      // ✅ Optional: tells Formspree where to reply
-      fd.append("_replyto", form.email);
-
-      const res = await fetch(FORMSPREE_URL, {
-        method: "POST",
-        body: fd,
-        headers: { Accept: "application/json" },
+      // ✅ Cancel mailto link
+      const cancelToken = generateCancelToken();
+      const cancelLink = buildCancelLink({
+        confirmationNumber: confirmation,
+        email: form.email,
+        cancelToken,
       });
 
-      const data = await res.json().catch(() => ({}));
+      // ✅ IMPORTANT: These field names match your serverless function
+      const payload = {
+        confirmationNumber: confirmation,
 
-      if (res.ok) {
-        setStatus({ type: "success", msg: "Sent! We’ll confirm availability shortly." });
-        setErrors({});
-        setForm({
-          fullName: "",
-          email: "",
-          phone: "",
-          roomType: "",
-          checkIn: "",
-          checkOut: "",
-          adults: "1",
-          airportShuttle: false,
-          message: "",
-          _gotcha: "",
-        });
-      } else {
-        setStatus({
-          type: "error",
-          msg: data?.error || "Could not send. Please try again.",
-        });
-      }
-    } catch {
-      setStatus({ type: "error", msg: "Network error. Please try again." });
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        notes: form.requests, // ✅ matches API
+
+        room: room.name,
+        roomId: room.id,
+        rate: selectedRate.label,
+        checkIn,
+        checkOut,
+        adults,
+        children,
+        airportShuttle: shuttle, // ✅ matches API (boolean is fine)
+        total: `${room.currency} ${total.toFixed(0)}`,
+
+        cancelToken,
+        cancelLink,
+
+        page: typeof window !== "undefined" ? window.location.href : "",
+        submittedAt: new Date().toISOString(),
+      };
+
+      const res = await fetch(BOOKING_API, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
+});
+
+const out = await res.json().catch(() => ({}));
+
+if (!res.ok) {
+  throw new Error(out.error || "Failed to send booking");
+}
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err?.message || "Could not send. Please try again.");
+
+      // regenerate confirmation for next attempt
+      setConfirmationNo(generateConfirmation());
+    } finally {
+      setSubmitting(false);
     }
   }
 
-  const inputBase =
-    "w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-black/20";
+  // ✅ SUCCESS SCREEN
+  if (submitted) {
+    return (
+      <div className="bg-white">
+        <div className="mx-auto max-w-4xl px-4 py-16">
+          <div className="text-sm text-gray-600">THE JEWEL HERITAGE • PARO, BHUTAN</div>
 
-  const errorText = "text-sm text-red-600 mt-1";
+          <h1 className="mt-2 text-4xl font-semibold">Booking request sent ✅</h1>
 
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="text-3xl font-semibold">Book Your Stay</h1>
-      <p className="mt-2 text-gray-600">
-        Fill in your details and we’ll confirm availability and pricing by email.
-      </p>
-
-      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-        <div>
-          <label className="block text-sm font-medium">Full name</label>
-          <input
-            className={inputBase}
-            name="fullName"
-            value={form.fullName}
-            onChange={handleChange}
-            placeholder="Your full name"
-            autoComplete="name"
-            required
-          />
-          {errors.fullName && <div className={errorText}>{errors.fullName}</div>}
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium">Email</label>
-            <input
-              className={inputBase}
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="you@example.com"
-              autoComplete="email"
-              required
-            />
-            {errors.email && <div className={errorText}>{errors.email}</div>}
+          <div className="mt-4 text-lg">
+            Confirmation Number:
+            <span className="font-bold ml-2 text-green-700">{confirmationNo}</span>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium">Phone (with country code)</label>
-            <input
-              className={inputBase}
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="+61 4xx xxx xxx"
-              autoComplete="tel"
-              inputMode="tel"
-              required
-            />
-            {errors.phone && <div className={errorText}>{errors.phone}</div>}
-          </div>
-        </div>
+          <p className="mt-3 text-gray-700">
+            Thank you! We’ve received your request and will confirm availability by email shortly.
+          </p>
 
-        <div className="grid gap-5 md:grid-cols-3">
-          <div className="md:col-span-1">
-            <label className="block text-sm font-medium">Room type</label>
-            <select
-              className={inputBase}
-              name="roomType"
-              value={form.roomType}
-              onChange={handleChange}
-              required
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(confirmationNo)}
+              className="rounded-full border px-5 py-2 text-sm font-semibold hover:bg-gray-50"
             >
-              <option value="">Select room</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.name}>
-                  {room.name}
-                </option>
-              ))}
-            </select>
-            {errors.roomType && <div className={errorText}>{errors.roomType}</div>}
+              Copy confirmation number
+            </button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium">Check-in</label>
-            <input
-              className={inputBase}
-              type="date"
-              name="checkIn"
-              value={form.checkIn}
-              onChange={handleChange}
-              min={todayStr}
-              required
-            />
-            {errors.checkIn && <div className={errorText}>{errors.checkIn}</div>}
+          <div className="mt-8 border rounded-2xl p-6">
+            <div className="text-lg font-semibold">Summary</div>
+
+            <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="text-gray-600">Confirmation</div>
+              <div className="font-medium">{confirmationNo}</div>
+
+              <div className="text-gray-600">Room</div>
+              <div className="font-medium">{room?.name}</div>
+
+              <div className="text-gray-600">Dates</div>
+              <div className="font-medium">
+                {fmtDateShort(checkIn)} → {fmtDateShort(checkOut)} ({nights} night)
+              </div>
+
+              <div className="text-gray-600">Guests</div>
+              <div className="font-medium">
+                {adults} adult · {roomsCount} room
+              </div>
+
+              <div className="text-gray-600">Rate</div>
+              <div className="font-medium">{selectedRate?.label}</div>
+
+              <div className="text-gray-600">Total</div>
+              <div className="font-semibold">
+                {room?.currency} {total.toFixed(0)}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium">Check-out</label>
-            <input
-              className={inputBase}
-              type="date"
-              name="checkOut"
-              value={form.checkOut}
-              onChange={handleChange}
-              min={form.checkIn ? addDays(form.checkIn, 1) : addDays(todayStr, 1)}
-              required
-            />
-            {errors.checkOut && <div className={errorText}>{errors.checkOut}</div>}
-          </div>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium">Adults</label>
-            <input
-              className={inputBase}
-              type="number"
-              name="adults"
-              min="1"
-              max="10"
-              value={form.adults}
-              onChange={handleChange}
-              required
-            />
-            {errors.adults && <div className={errorText}>{errors.adults}</div>}
-          </div>
-
-          <div className="flex items-end">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="airportShuttle"
-                checked={form.airportShuttle}
-                onChange={handleChange}
-              />
-              Airport shuttle required
-            </label>
+          <div className="mt-8 flex gap-3">
+            <Link to="/" className="rounded-full border px-6 py-3 font-semibold hover:bg-gray-50">
+              Back to Home
+            </Link>
+            <Link
+              to="/gallery"
+              className="rounded-full bg-black text-white px-6 py-3 font-semibold hover:bg-gray-800"
+            >
+              View Gallery
+            </Link>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        <div>
-          <label className="block text-sm font-medium">Special requests</label>
-          <textarea
-            className={inputBase}
-            name="message"
-            rows={4}
-            value={form.message}
-            onChange={handleChange}
-            placeholder="Anything we should know?"
-          />
-        </div>
+  // ✅ FORM
+  return (
+    <div className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <div className="text-sm text-gray-600">THE JEWEL HERITAGE • PARO, BHUTAN</div>
+        <h1 className="mt-2 text-4xl font-semibold">Book Your Stay</h1>
+        <p className="mt-2 text-gray-700">Fill in your details and submit your booking request.</p>
 
-        {/* Honeypot: keep hidden */}
-        <input
-          type="text"
-          name="_gotcha"
-          value={form._gotcha}
-          onChange={handleChange}
-          style={{ display: "none" }}
-          tabIndex={-1}
-          autoComplete="off"
-        />
+        <div className="mt-10 grid lg:grid-cols-3 gap-8">
+          {/* LEFT: Guest form */}
+          <div className="lg:col-span-2 border rounded-2xl overflow-hidden">
+            <div className="p-6 border-b">
+              <div className="text-xl font-semibold">Guest details</div>
+              <div className="text-sm text-gray-600 mt-1">
+                Enter accurate contact details so we can confirm quickly.
+              </div>
+            </div>
 
-        <button
-          type="submit"
-          disabled={status.type === "loading"}
-          className="rounded-md bg-black px-6 py-3 text-white disabled:opacity-60"
-        >
-          {status.type === "loading" ? "Sending..." : "Submit Booking"}
-        </button>
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {errorMsg ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {errorMsg}
+                </div>
+              ) : null}
 
-        {status.msg && (
-          <div
-            className={
-              status.type === "success"
-                ? "text-green-700"
-                : status.type === "error"
-                ? "text-red-700"
-                : "text-gray-700"
-            }
-          >
-            {status.msg}
+              <div>
+                <label className="text-sm font-medium">Full name *</label>
+                <input
+                  value={form.fullName}
+                  onChange={update("fullName")}
+                  className="mt-2 w-full rounded-xl border px-4 py-3"
+                  placeholder="Your full name"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Email *</label>
+                  <input
+                    value={form.email}
+                    onChange={update("email")}
+                    className="mt-2 w-full rounded-xl border px-4 py-3"
+                    placeholder="you@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Phone (with country code) *</label>
+                  <input
+                    value={form.phone}
+                    onChange={update("phone")}
+                    className="mt-2 w-full rounded-xl border px-4 py-3"
+                    placeholder="+975 17xxxxxx"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Special requests (optional)</label>
+                <textarea
+                  value={form.requests}
+                  onChange={update("requests")}
+                  className="mt-2 w-full rounded-xl border px-4 py-3"
+                  rows={4}
+                  placeholder="Airport pickup, late check-in, dietary needs..."
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Link to="/pricing" className="text-sm text-blue-700 hover:underline">
+                  ← Back to pricing
+                </Link>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-full bg-black text-white px-8 py-3 font-semibold hover:bg-gray-800 disabled:opacity-60"
+                >
+                  {submitting ? "Sending..." : "Confirm & Send"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </form>
+
+          {/* RIGHT: Summary */}
+          <aside className="lg:col-span-1">
+            <div className="sticky top-6 border rounded-2xl p-6 shadow-sm bg-white">
+              <div className="text-lg font-semibold">Booking summary</div>
+
+              <div className="mt-5 space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Room</span>
+                  <span className="font-medium">{room?.name || "-"}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Dates</span>
+                  <span className="font-medium">
+                    {checkIn} → {checkOut}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Nights</span>
+                  <span className="font-medium">{nights}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Rooms</span>
+                  <span className="font-medium">{roomsCount}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Adults</span>
+                  <span className="font-medium">{adults}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Shuttle</span>
+                  <span className="font-medium">{shuttle ? "Yes" : "No"}</span>
+                </div>
+
+                <div className="pt-4 border-t flex justify-between">
+                  <span className="text-gray-600">Total</span>
+                  <span className="font-semibold">
+                    {room?.currency || "BTN"} {total.toFixed(0)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl border bg-gray-50 p-4 text-xs text-gray-600">
+                We’ll confirm availability by email. (Cancellation link is included in the email you receive.)
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
   );
 }
