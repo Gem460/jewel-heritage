@@ -5,7 +5,8 @@ import rooms from "../data/roomsData";
 import { nightsBetween, fmtDateShort } from "../utils/date";
 
 // ✅ If you set VITE_API_BASE you can use it, otherwise default to same-origin (best for Vercel)
-const BOOKING_API = "/api/booking";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+const BOOKING_API = `${API_BASE}/api/booking`;
 
 // ✅ Confirmation number generator (JH-YYYYMMDD-XXXX)
 function generateConfirmation() {

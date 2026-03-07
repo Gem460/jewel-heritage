@@ -9,6 +9,7 @@ import Checkout from "./pages/Checkout";
 import Bookings from "./pages/Bookings";
 import About from "./pages/About";
 import Cancellation from "./pages/Cancellation";
+import Contact from "./sections/Contact";
 
 function NotFound() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/bookings" element={<Bookings />} />
         <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/cancel-booking" element={<Cancellation />} />
         <Route path="/home" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />

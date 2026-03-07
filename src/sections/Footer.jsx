@@ -21,6 +21,7 @@ export default function Footer() {
               <li><Link to="/#gallery" className="hover:underline">Gallery</Link></li>
               <li><Link to="/#contact" className="hover:underline">Contact</Link></li>
               <li><Link to="/pricing" className="hover:underline">Book Online</Link></li>
+              <li><Link to="/cancel-booking" className="hover:underline">Cancel Booking</Link></li>
             </ul>
           </div>
 

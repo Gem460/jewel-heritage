@@ -8,14 +8,23 @@ export default function Pricing() {
   const [params] = useSearchParams();
 
   const roomId = params.get("room") || rooms?.[0]?.id;
+  const search = params.get("search")?.toLowerCase() || "";
   const checkIn = params.get("checkIn") || "2026-03-05";
   const checkOut = params.get("checkOut") || "2026-03-08";
   const adults = Number(params.get("adults") || 1);
   const roomsCount = Number(params.get("rooms") || 1);
 
-  const room = useMemo(() => {
-    return rooms.find((r) => r.id === roomId) || rooms?.[0];
-  }, [roomId]);
+const filteredRooms = useMemo(() => {
+  if (!search) return rooms;
+  return rooms.filter((r) =>
+    r.name.toLowerCase().includes(search)
+  );
+}, [search]);
+
+const room = useMemo(() => {
+  if (search) return filteredRooms[0];
+  return rooms.find((r) => r.id === roomId) || rooms?.[0];
+}, [roomId, filteredRooms, search]);
 
   const nights = useMemo(() => {
     const n = nightsBetween(checkIn, checkOut);

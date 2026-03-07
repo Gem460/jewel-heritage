@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-const FORMSPREE_ENDPOINT =
-  import.meta.env.VITE_FORMSPREE_ENDPOINT || "https://formspree.io/f/xeelddjb";
+const CANCEL_API =
+  import.meta.env.VITE_API_BASE
+    ? `${import.meta.env.VITE_API_BASE}/api/cancel`
+    : "https://thejewelheritage.com/api/cancel";
 
 export default function Cancellation() {
   const [form, setForm] = useState({
@@ -45,23 +47,21 @@ export default function Cancellation() {
         confirmationNumber: form.confirmation,
         email: form.email,
         reason: form.reason,
-
-        type: "Cancellation Request",
-
-        _replyto: form.email,
-        _subject: `Cancellation Request — ${form.confirmation}`,
       };
 
-      const res = await fetch(FORMSPREE_ENDPOINT, {
+      const res = await fetch(CANCEL_API, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Could not send cancellation request.");
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Could not send cancellation request.");
+      }
 
       setSubmitted(true);
     } catch (err) {
@@ -75,13 +75,14 @@ export default function Cancellation() {
     return (
       <div className="bg-white">
         <div className="mx-auto max-w-3xl px-4 py-16">
+
           <h1 className="text-4xl font-semibold">
             Cancellation request sent
           </h1>
 
           <p className="mt-4 text-gray-700">
             Your cancellation request has been sent to the hotel.
-            We will process it and confirm by email shortly.
+            A confirmation email has also been sent to your email address.
           </p>
 
           <div className="mt-6 text-lg">
@@ -97,6 +98,7 @@ export default function Cancellation() {
           >
             Back to Home
           </Link>
+
         </div>
       </div>
     );
@@ -118,6 +120,7 @@ export default function Cancellation() {
           onSubmit={handleSubmit}
           className="mt-10 space-y-6 border rounded-2xl p-8"
         >
+
           {errorMsg && (
             <div className="text-red-600 text-sm">
               {errorMsg}
@@ -128,6 +131,7 @@ export default function Cancellation() {
             <label className="text-sm font-medium">
               Confirmation Number *
             </label>
+
             <input
               value={form.confirmation}
               onChange={update("confirmation")}
@@ -140,6 +144,7 @@ export default function Cancellation() {
             <label className="text-sm font-medium">
               Email used for booking *
             </label>
+
             <input
               value={form.email}
               onChange={update("email")}
@@ -152,6 +157,7 @@ export default function Cancellation() {
             <label className="text-sm font-medium">
               Reason (optional)
             </label>
+
             <textarea
               value={form.reason}
               onChange={update("reason")}
@@ -168,6 +174,7 @@ export default function Cancellation() {
           >
             {submitting ? "Sending..." : "Cancel Booking"}
           </button>
+
         </form>
       </div>
     </div>

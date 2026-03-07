@@ -1,13 +1,11 @@
-import AccorPhotoStrip from "../sections/AccorPhotoStrip";
-import HeroBookingSearch from "../sections/HeroBookingSearch";
+import Hero from "../sections/Hero";
 import Rooms from "../sections/Rooms";
 import Location from "../sections/Location";
 
 export default function Home() {
   return (
     <>
-      <AccorPhotoStrip onOpenGallery={() => (window.location.href = "/gallery")} />
-      <HeroBookingSearch />
+      <Hero />
       <Rooms />
       <div id="map">
         <Location />

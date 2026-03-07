@@ -24,12 +24,12 @@ export default function Location() {
               <p>
                 <span className="font-medium">Phone/WhatsApp:</span>{" "}
                 <a
-                  href="https://wa.me/97577777567"
+                  href="https://wa.me/97516141117"
                   target="_blank"
                   rel="noreferrer"
                   className="underline underline-offset-4"
                 >
-                  +975 7777 7567
+                  +975 16141117
                 </a>
               </p>
               <p>
@@ -54,7 +54,7 @@ export default function Location() {
               </a>
 
               <a
-                href="https://wa.me/97577777567?text=Hi%20The%20Jewel%20Heritage%2C%20I%20want%20to%20book%20a%20room.%20Please%20share%20availability."
+                href="https://wa.me/97516141117?text=Hi%20The%20Jewel%20Heritage%2C%20I%20want%20to%20book%20a%20room.%20Please%20share%20availability."
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center justify-center rounded-full border px-5 py-2 text-xs font-medium hover:bg-gray-50"
